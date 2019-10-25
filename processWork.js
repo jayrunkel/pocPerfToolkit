@@ -14,12 +14,17 @@ var MongoClient = mongo.MongoClient;
 var numProcessing = 0;
 var count = 0;
 var fileComplete = false;
+var debug = false;
+
+
 
 
 const testNum = Math.floor(Date.now() / 1000);
-const perfURL = "http://localhost:3334/test_run/test_" + testNum;
+const perfURL = "http://ec2-3-87-195-226.compute-1.amazonaws.com:3334/test_run/" + getTestId();
 
-
+function getTestId () {
+    return "test_" + testNum;
+}
 
 MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
 
@@ -34,6 +39,11 @@ MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
 	var messagesCol = db.collection("Messages");
 
 	console.log("Starting to read");
+
+	const recordTestStart = axios.patch(perfURL, {
+	    measurement_name: "startTest",
+	    measurements: [{timeStamp: Date.now()}]
+	})
     
 	var rl = readline.createInterface({
 	    input: process.stdin,
@@ -46,27 +56,34 @@ MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
 	    try {
 
 		var doc = JSON.parse(docLine);
-		console.log("startInsert");
-		const startInsert = axios.patch(perfURL, {
-		    measurement_name: "startInsert",
-		    measurements: [{
+		if (debug) {console.log("startInsert");}
+		const startInsert = axios.post(perfURL + '/log', {
+		    //		    type: "measurements",
+		    eventType: "startInsert",
+		    measurements: {
 			timeStamp: Date.now(),
-			docId: doc.id}]
+			docId: doc.id
+		    }
 		});
 
-		console.log("numProcessing: ", numProcessing, "> Insert MongoDB");
+		if (debug) {console.log("numProcessing: ", numProcessing, "> Insert MongoDB");}
 		let iResult = await messagesCol.insertOne(doc);
 		numProcessing--;
 		if (fileComplete && numProcessing == 0) {
 	    	    client.close();
+
+		    const recordTestEnd = axios.patch(perfURL, {
+			measurement_name: "endTest",
+			measurements: [{timeStamp: Date.now()}]
+		    })
 		}
-		console.log("completeInsert");
-		const completeInsert = axios.patch(perfURL, {
-		    measurement_name: "completeInsert",
-		    measurements: [{
+		if (debug) {console.log("completeInsert");}
+		const completeInsert = axios.post(perfURL + '/log', {
+		    eventType: "completeInsert",
+		    measurements: {
 			timeStamp: Date.now(),
 			docId: doc.id
-		    }]
+		    }
 		});
 
 		const startInsertResponse = await startInsert;
