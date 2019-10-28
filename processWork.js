@@ -15,12 +15,35 @@ var numProcessing = 0;
 var count = 0;
 var fileComplete = false;
 var debug = false;
-
-
-
+const numAppServers = 4;
+const startPort = 3334;
 
 const testNum = Math.floor(Date.now() / 1000);
-const perfURL = "http://ec2-3-87-195-226.compute-1.amazonaws.com:3334/test_run/" + getTestId();
+const perfURL = "http://ec2-3-87-195-226.compute-1.amazonaws.com:____/test_run/" + getTestId();
+var perfURLs = generatePerfUrls(perfURL, startPort, numAppServers);
+
+console.log("App server URLs: ", perfURLs);
+console.log("A random URL: ", getPerfUrl());
+console.log("A random URL: ", getPerfUrl());
+console.log("A random URL: ", getPerfUrl()); 
+console.log("A random URL: ", getPerfUrl());
+console.log("A random URL: ", getPerfUrl());
+console.log("A random URL: ", getPerfUrl()); 
+
+function generatePerfUrls (url, sPort, num) {
+    list = [];
+    for (i=0; i<num; i++) {
+	port = sPort + i;
+	list.push(url.replace('____', port));
+    }
+    return list;
+}
+
+function getPerfUrl() {
+    return perfURLs[Math.floor(Math.random() * numAppServers)];
+}
+
+
 
 function getTestId () {
     return "test_" + testNum;
@@ -31,7 +54,7 @@ MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
     const runTest = async client => {
 	
 	//Create test in logging system
-	const response = await axios.post(perfURL);
+	const response = await axios.post(getPerfUrl());
 	const testInfo = response.data;
 	console.log("Starting test: ", testInfo);
     
@@ -40,7 +63,7 @@ MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
 
 	console.log("Starting to read");
 
-	const recordTestStart = axios.patch(perfURL, {
+	const recordTestStart = axios.patch(getPerfUrl(), {
 	    measurement_name: "startTest",
 	    measurements: [{timeStamp: Date.now()}]
 	})
@@ -57,7 +80,7 @@ MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
 
 		var doc = JSON.parse(docLine);
 		if (debug) {console.log("startInsert");}
-		const startInsert = axios.post(perfURL + '/log', {
+		const startInsert = axios.post(getPerfUrl() + '/log', {
 		    //		    type: "measurements",
 		    eventType: "startInsert",
 		    measurements: {
@@ -72,13 +95,13 @@ MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
 		if (fileComplete && numProcessing == 0) {
 	    	    client.close();
 
-		    const recordTestEnd = axios.patch(perfURL, {
+		    const recordTestEnd = axios.patch(getPerfUrl(), {
 			measurement_name: "endTest",
 			measurements: [{timeStamp: Date.now()}]
 		    })
 		}
 		if (debug) {console.log("completeInsert");}
-		const completeInsert = axios.post(perfURL + '/log', {
+		const completeInsert = axios.post(getPerfUrl() + '/log', {
 		    eventType: "completeInsert",
 		    measurements: {
 			timeStamp: Date.now(),
