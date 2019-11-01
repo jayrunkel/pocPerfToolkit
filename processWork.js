@@ -92,14 +92,7 @@ MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
 		if (debug) {console.log("numProcessing: ", numProcessing, "> Insert MongoDB");}
 		let iResult = await messagesCol.insertOne(doc);
 		numProcessing--;
-		if (fileComplete && numProcessing == 0) {
-	    	    client.close();
 
-		    const recordTestEnd = axios.patch(getPerfUrl(), {
-			measurement_name: "endTest",
-			measurements: [{timeStamp: Date.now()}]
-		    })
-		}
 		if (debug) {console.log("completeInsert");}
 		const completeInsert = axios.post(getPerfUrl() + '/log', {
 		    eventType: "completeInsert",
@@ -111,6 +104,15 @@ MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
 
 		const startInsertResponse = await startInsert;
 		const completeInsertResponse = await completeInsert;
+		if (fileComplete && numProcessing == 0) {
+
+		    const recordTestEnd = await axios.patch(getPerfUrl(), {
+			measurement_name: "endTest",
+			measurements: [{timeStamp: Date.now()}]
+		    });
+		    client.close();
+
+		}
 	    }
 	    catch(err) {
 		console.log(err);
