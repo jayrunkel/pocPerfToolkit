@@ -11,8 +11,9 @@ const appConnectionStr = 'mongodb://admin:power_low12@ec2-3-87-195-226.compute-1
 const mongoOptions = { useNewUrlParser: true, useUnifiedTopology: true };
 
 var MongoClient = mongo.MongoClient;
-var numProcessing = 0;
-var count = 0;
+var numProcessing = 0;           //number of lines where processing is in flight
+var count = 0;                   //number of lines read
+var numComplete=0;                 //numvwe of lines completely processed
 var fileComplete = false;
 var debug = false;
 const numAppServers = 4;
@@ -54,14 +55,6 @@ const aggQuery = [
     }
 ];
 
-console.log("App server URLs: ", perfURLs);
-console.log("A random URL: ", getPerfUrl());
-console.log("A random URL: ", getPerfUrl());
-console.log("A random URL: ", getPerfUrl()); 
-console.log("A random URL: ", getPerfUrl());
-console.log("A random URL: ", getPerfUrl());
-console.log("A random URL: ", getPerfUrl()); 
-
 function generatePerfUrls (url, sPort, num) {
     list = [];
     for (i=0; i<num; i++) {
@@ -79,6 +72,10 @@ function getPerfUrl() {
 
 function getTestId () {
     return "test_" + testNum;
+}
+
+function logProgress() {
+    console.log("Read: ", count, " inFlight: ", numProcessing, " Completed: ", numComplete);
 }
 
 MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
@@ -145,6 +142,11 @@ MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
 		const startInsertResponse = await startInsert;
 		const completeInsertResponse = await completeInsert;
 		numProcessing--;
+		numComplete++;
+
+		if (numComplete%100 == 0) {
+		    logProgress();
+		}
 
 		if (fileComplete && numProcessing == 0) {
 
@@ -167,7 +169,7 @@ MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
 	    count++;
 
 	    if (count%100 == 0) {
-		console.log(count);
+		logProgress();
 	    }
 
 
@@ -184,6 +186,7 @@ MongoClient.connect(appConnectionStr, mongoOptions, function(err, client) {
 
 	rl.on('close', () => {
 	    console.log("File Processing complete.");
+	    logProgress();
 	    fileComplete = true;
 	})
 
