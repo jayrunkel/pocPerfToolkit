@@ -1,8 +1,16 @@
-const startTime=1572295309324;
-const endTime=1572295708278;
 
-const dividerStart=Math.floor(startTime / 1000)*1000;
-const dividerEnd=Math.round(endTime / 1000)*1000;
+var db = db.getSiblingDB("results");
+
+var latestTest = db.test_run.find().sort({last_modified : -1}).limit(1).next();
+
+var testStartTime=latestTest.startTest[0].timeStamp;
+var testEndTime=latestTest.endTest[0].timeStamp;
+
+var opsMgrCollStartTime=NumberLong(new Date(db.metrics_hosts.findOne().measurements[0].dataPoints[0].timestamp));
+
+//var dividerStart=Math.floor(testStartTime / 1000)*1000;
+var dividerStart=opsMgrCollStartTime;
+var dividerEnd=Math.round(testEndTime / 1000)*1000;
 
 //console.log("[", dividerStart, ", ", dividerEnd,"]");
 
@@ -12,13 +20,12 @@ for (d=dividerStart; d<dividerEnd; d=d+10000) {
 }
 //console.log(dividers);
 
-printjson(dividers);
+//printjson(dividers);
 
-
-db.event_data.aggregate([
+var aggPipeline = [
     {
 	$match: {
-	    test_id : "test_1572295309",
+	    test_id : latestTest._id,
 	    "data.eventType" : "completeInsert"
 	}
     },
@@ -31,7 +38,99 @@ db.event_data.aggregate([
 		count: { $sum : 1 }
 	    }
 	}
+    },
+    {
+	$addFields : {
+	    date: {
+		"$convert" : {
+		    input: "$_id",
+		    to: "date",
+		    onError: 0
+		}
+	    },
+	    dateStr: {
+		$convert : {
+		    input : {
+			"$convert" : {
+			    input: "$_id",
+			    to: "date",
+			    onError: 0
+			}
+		    },
+		    to: "string",
+		    onError: 0
+		}
+	    },
+	    perSec: { $multiply : ["$count", 0.1]}
+	}
+    },
+    {
+	$out : "complete10SBucket"
     }
-])
+];
+
+var results = db.event_data.aggregate(aggPipeline).toArray();
+
+printjson(results);
+
+//db.createView("complete10SBucket", "event_data", aggPipeline);
+
+var opCounterInsertViewPipe = [
+    {
+	$unwind: {
+	    path: "$measurements"
+	}
+    },
+    {
+	$match: {
+	    "measurements.name" : "OPCOUNTER_INSERT"
+	}
+    },
+    {
+	$unwind: {
+	    path: "$measurements.dataPoints",
+	    includeArrayIndex: 'index'
+	}
+    },
+    {
+	$project : {
+	    _id : 0,
+	}
+    },
+    {
+	$addFields : {
+	    measurementTimeStr : {
+		$convert : {
+		    input: "$measurements.dataPoints.timestamp",
+		    to: "string",
+		    onError: 0
+		}
+	    },
+	    measurementTime : {
+		$convert : {
+		    input: "$measurements.dataPoints.timestamp",
+		    to: "date",
+		    onError: 0
+		}
+	    }
+	}
+    },
+    {
+	$out: "opcounter_insert"
+    }
+];
+
+db.metrics_hosts.aggregate(opCounterInsertViewPipe);
 
 
+
+var joinFromOMgrToAppData = [
+    {
+	$lookup: {
+	    from: 'complete10SBucket',
+	    localField: 'measurementTime',
+	    foreignField: 'date',
+	    as: 'appInserts'
+	}
+    }
+];
