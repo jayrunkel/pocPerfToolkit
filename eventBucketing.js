@@ -120,6 +120,49 @@ var opCounterInsertViewPipe = [
     }
 ];
 
+const metricHostTimeBucketPipe = [
+    {
+	$unwind: {
+	    path: '$measurements'
+	}
+    },
+    {
+	$unwind: {
+	    path: '$measurements.dataPoints',
+	    includeArrayIndex: 'index'
+	}
+    },
+    {
+	$group: {
+	    _id: "$measurements.dataPoints.timestamp",
+	    metrics: {
+		$push: {
+		    k: "$measurements.name", 
+		    v: "$measurements.dataPoints.value"
+		}
+	    }
+	}
+    },
+    {
+	$project: {
+	    _id: 0,
+	    measurementTimeStr: "$_id",
+	    measurementTime: {
+		$convert: {
+		    input: '$_id',
+		    to: 'date',
+		    onError: 0
+		}
+	    },
+	    metrics: {$arrayToObject : "$metrics"}
+	}
+    },
+    {
+	$out: 'metrics_host_timeBuckets'
+    }
+];
+
+
 db.metrics_hosts.aggregate(opCounterInsertViewPipe);
 
 
